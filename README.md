@@ -1,8 +1,6 @@
 # callTracer-graalVM
 Instrument to create a call graph for projects run on graalvm and use these call graphs to optimise compiler.
 
-Graal commit version (Apr 1): 7c72b85bc0d85bff0ff1f29fc4edc3c27a360ab3
-
 Graaljs commit version (Apr 14): c6fc92e7367004b1b952ce21da7c8a13f3f436a1
 
 Mx commit version (Apr 9): 65c6727a0080515696c25934f3da02ef7a1aa43a
