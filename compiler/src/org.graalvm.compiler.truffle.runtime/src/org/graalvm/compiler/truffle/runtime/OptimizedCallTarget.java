@@ -70,6 +70,12 @@ import jdk.vm.ci.code.InstalledCode;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.SpeculationLog;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import com.oracle.truffle.api.source.SourceSection;
+
 /**
  * Call target that is optimized by Graal upon surpassing a specific invocation threshold. That is,
  * this is a Truffle AST that can be optimized via partial evaluation and compiled to machine code.
@@ -106,8 +112,46 @@ import jdk.vm.ci.meta.SpeculationLog;
  *                                         rootNode.execute()
  * </pre>
  */
+
+
+
 @SuppressWarnings({"hiding"})
 public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootCallTarget, ReplaceObserver {
+
+    /**
+     * This is an altered version of OptimizedCallTarget, which takes as an input 2 csv files.
+     */
+
+    /**
+     * Use graph input for compilation
+     */
+    private static final boolean USE_GRAPH = Boolean.getBoolean("callTarget.useGraph");
+    /**
+     * Compile input file in csv
+     */
+    private static final String INPUT_FILE_COMPILE = System.getProperty("callTarget.inputCompile");
+
+    /**
+     * Turn on forced inlining
+     */
+    private static final boolean INLINE = Boolean.getBoolean("callTarget.inline");
+
+    /**
+     * Inline input file in csv
+     */
+    private static final String INPUT_FILE_INLINE = System.getProperty("callTarget.inputInline");
+    /**
+     * Turn on forced inlining
+     */
+    private static final boolean FORCE_INLINE = Boolean.getBoolean("callTarget.forceCompileInline");
+
+
+    private final SourceSection sourceSection;
+
+    private final String locationDescriptor;
+    private final int aotCompilationCallCount;
+    private final int aotInlineCallCount;
+
 
     private static final String NODE_REWRITING_ASSUMPTION_NAME = "nodeRewritingAssumption";
     private static final String VALID_ROOT_ASSUMPTION_NAME = "validRootAssumption";
@@ -337,19 +381,99 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
     volatile List<OptimizedCallTarget> blockCompilations;
     public final int id;
     private static final AtomicInteger idCounter = new AtomicInteger(0);
-
+    
     protected OptimizedCallTarget(OptimizedCallTarget sourceCallTarget, RootNode rootNode) {
-        assert sourceCallTarget == null || sourceCallTarget.sourceCallTarget == null : "Cannot create a clone of a cloned CallTarget";
-        this.sourceCallTarget = sourceCallTarget;
-        this.speculationLog = sourceCallTarget != null ? sourceCallTarget.getSpeculationLog() : null;
-        this.rootNode = rootNode;
-        this.engine = GraalTVMCI.getEngineData(rootNode);
-        this.resetCompilationProfile();
-        // Do not adopt children of OSRRootNodes; we want to preserve the parent of the child
-        // node(s).
-        this.uninitializedNodeCount = isOSR() ? -1 : GraalRuntimeAccessor.NODES.adoptChildrenAndCount(rootNode);
-        id = idCounter.getAndIncrement();
+        if (USE_GRAPH) {
+            assert sourceCallTarget == null || sourceCallTarget.sourceCallTarget == null : "Cannot create a clone of a cloned CallTarget";
+            this.sourceCallTarget = sourceCallTarget;
+            this.speculationLog = sourceCallTarget != null ? sourceCallTarget.getSpeculationLog() : null;
+            this.rootNode = rootNode;
+            this.engine = GraalTVMCI.getEngineData(rootNode);
+            this.resetCompilationProfile();
+            // Do not adopt children of OSRRootNodes; we want to preserve the parent of the child
+            // node(s).
+            this.uninitializedNodeCount = isOSR() ? -1 : GraalRuntimeAccessor.NODES.adoptChildrenAndCount(rootNode);
+            id = idCounter.getAndIncrement();
+
+            this.sourceSection = rootNode.getSourceSection();
+
+            boolean hasSource = sourceSection != null;
+            if (hasSource) {
+                String name = sourceSection.getSource().getName();
+                int startLine = sourceSection.getStartLine();
+                int endLine = sourceSection.getEndLine();
+                int startColumn = sourceSection.getStartColumn();
+                int endColumn = sourceSection.getEndColumn();
+                String position = startLine + "-" + endLine + ":" + startColumn + "-" + endColumn;
+                this.locationDescriptor = name + "~" + position + rootNode;
+            } else {
+                this.locationDescriptor = "empty";
+            }
+
+            if (precomputedCounts.containsKey(this.locationDescriptor)) {
+                this.aotCompilationCallCount = precomputedCounts.get(locationDescriptor);
+            } else {
+                this.aotCompilationCallCount = Integer.MAX_VALUE;
+            }
+
+            if (precomputedCountsInlined.containsKey(this.locationDescriptor)) {
+                this.aotInlineCallCount = precomputedCountsInlined.get(locationDescriptor);
+            } else {
+                this.aotInlineCallCount = Integer.MAX_VALUE;
+            }
+        }
+        else{
+            this.sourceSection = rootNode.getSourceSection();
+            this.locationDescriptor = "empty";
+            this.aotCompilationCallCount = Integer.MAX_VALUE;
+            this.aotInlineCallCount = Integer.MAX_VALUE;
+
+            assert sourceCallTarget == null || sourceCallTarget.sourceCallTarget == null : "Cannot create a clone of a cloned CallTarget";
+            this.sourceCallTarget = sourceCallTarget;
+            this.speculationLog = sourceCallTarget != null ? sourceCallTarget.getSpeculationLog() : null;
+            this.rootNode = rootNode;
+            this.engine = GraalTVMCI.getEngineData(rootNode);
+            this.resetCompilationProfile();
+            // Do not adopt children of OSRRootNodes; we want to preserve the parent of the child
+            // node(s).
+            this.uninitializedNodeCount = isOSR() ? -1 : GraalRuntimeAccessor.NODES.adoptChildrenAndCount(rootNode);
+            id = idCounter.getAndIncrement();
+        }
     }
+
+    private static final Map<String, Integer> precomputedCounts = new HashMap<>();
+    private static final Map<String, Integer> precomputedCountsInlined = new HashMap<>();
+
+    static {
+        if(USE_GRAPH) {
+            try {
+                List<String> lines = Files.readAllLines(Paths.get(INPUT_FILE_COMPILE));
+                for (String s : lines) {
+                    String[] split = s.split("@@");
+                    String key = split[1];
+                    Integer value = Integer.parseInt(split[0]);
+                    precomputedCounts.put(key, value);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            if(INLINE) {
+                try {
+                    List<String> lines = Files.readAllLines(Paths.get(INPUT_FILE_INLINE));
+                    for (String s : lines) {
+                        String[] split = s.split("@@");
+                        String key = split[1];
+                        Integer value = Integer.parseInt(split[0]);
+                        precomputedCountsInlined.put(key, value);
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+
 
     final Assumption getNodeRewritingAssumption() {
         Assumption assumption = nodeRewritingAssumption;
@@ -597,7 +721,25 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
     }
 
     private boolean shouldCompileImpl(int intCallCount, int intLoopCallCount) {
-        return !compilationFailed //
+        if(USE_GRAPH) {
+            if (INLINE) {
+                if (intCallCount >= this.aotInlineCallCount) {
+                    OptimizedDirectCallNode callNode = getSingleCallNode();
+                    if (callNode != null && callNode.isInlinable() && !callNode.isInliningForced()) {
+                        callNode.forceInlining();
+                        if(FORCE_INLINE) {
+                            return !compilationFailed //
+                                    && !isSubmittedForCompilation() //
+                                    /*
+                                     * Compilation of OSR loop nodes is managed separately.
+                                     */
+                                    && !isOSR(); //true;
+                        }
+                    }
+                }
+            }
+            if (this.aotCompilationCallCount == 0) {
+                return !compilationFailed //
                         && !isSubmittedForCompilation() //
                         /*
                          * Compilation of OSR loop nodes is managed separately.
@@ -605,7 +747,28 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
                         && !isOSR() //
                         && intCallCount >= engine.callThresholdInInterpreter //
                         && intLoopCallCount >= scaledThreshold(engine.callAndLoopThresholdInInterpreter); //
+            } else {
+                return !compilationFailed //
+                        && !isSubmittedForCompilation() //
+                        /*
+                         * Compilation of OSR loop nodes is managed separately.
+                         */
+                        && !isOSR() //
+                        && intCallCount >= this.aotCompilationCallCount; //
+            }
+        }
+        else{
+            return !compilationFailed //
+                    && !isSubmittedForCompilation() //
+                    /*
+                     * Compilation of OSR loop nodes is managed separately.
+                     */
+                    && !isOSR() //
+                    && intCallCount >= engine.callThresholdInInterpreter //
+                    && intLoopCallCount >= scaledThreshold(engine.callAndLoopThresholdInInterpreter);
+        }
     }
+    
 
     private static int scaledThreshold(int callAndLoopThresholdInInterpreter) {
         return FixedPointMath.multiply(runtime().compilationThresholdScale(), callAndLoopThresholdInInterpreter);
