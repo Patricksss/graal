@@ -1,3 +1,67 @@
+# callTracer-graalVM
+Instrument to create a call graph for projects run on graalvm and use these call graphs to optimise compiler.
+
+Graaljs commit version (Apr 14): c6fc92e7367004b1b952ce21da7c8a13f3f436a1
+
+Mx commit version (Apr 9): 65c6727a0080515696c25934f3da02ef7a1aa43a
+
+Install GraalJS and build: https://github.com/oracle/graaljs/blob/master/docs/Building.md
+
+Install Graal tools: https://github.com/oracle/graal/tree/master/tools
+
+## Use query results to optimise compiler
+
+taking as example the benchmark `typescript.js`.
+
+Benchmark can be found under: `/graaljs/graal-js/benchmarks`.
+
+Example input files under: `/graaljs/graal-js/typescript_inputs`.
+
+Now we can run the benchmark with an improved compiler strategy with:
+
+`mx --dy /compiler js --experimental-options --vm.DcallTarget.useGraph=true --vm.DcallTarget.inputCompile="typescript_inputs/50_sqrt_example.csv" --engine.TraversingCompilationQueue=false --engine.CompilerThreads=1 --engine.Inlining=true benchmarks/typescript.js`.
+
+Note that it is nescesarry to disable the `TraversingCompilationQueue` as that is the queue that we are trying to improve upon.
+
+## Use calltracer tool to create call graph of javascript program.
+Run the following command to get call graph of Typescript compiler in csv format.
+
+'mx --dy /tools js --vm.Xms4g --calltracer --calltracer.Output=CSV --calltracer.OutputFile=output.csv typescript.js'
+
+Other options such as arguments and object instances can be enabled by adding options: `--calltracer.TraceArguments`
+
+All options can be found by `mx --dy /tools --help:tools`.
+
+## Running queries on output CSV
+
+Install Neo4j Community Server: `Neo4j 4.3.7 (tar)`: https://neo4j.com/download-center/#community
+
+Place CSV of interest in `neo4j-community-4.3.7/import` directory.
+
+Enter bin directory:
+
+```
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-11.0.13.0.8-4.el8_5.x86_64
+export PATH=$JAVA_HOME/bin:$PATH
+./neo4j start
+./cypher-shell
+```
+
+Now we can run Cypher queries. Cypher queries are included in: https://github.com/Patricksss/callTracer-graalVM/blob/main/Queries.cypher
+
+### Optional settings required for some options/queries
+
+From `neo4j-community-4.3.7/labs` directory move `apoc-4.3.0.3-core.jar` to `neo4j-community-4.3.7/plugins` directory.
+
+Enter `neo4j-community-4.3.7/conf` directory and edit `neo4j.conf`:
+
+Add to file: `dbms.import.csv.buffer_size=33554432`
+
+Add to file: `apoc.export.file.enabled=true`
+
+change `dbms.jvm.additional=-Djdk.nio.maxCachedBufferSize=` to: `dbms.jvm.additional=-Djdk.nio.maxCachedBufferSize=2097152`
+
+
 [![GraalVM](.github/assets/logo_320x64.svg)][website]
 
 [![GraalVM downloads][badge-dl]][downloads] [![GraalVM docs][badge-docs]][docs] [![GraalVM on Slack][badge-slack]][slack] [![GraalVM on Twitter][badge-twitter]][twitter] [![GraalVM on YouTube][badge-yt]][youtube]  [![GraalVM Gate][badge-gate]][gate] [![License][badge-license]](#license)
