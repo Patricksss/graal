@@ -415,18 +415,42 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
             } else {
                 this.aotCompilationCallCount = Integer.MAX_VALUE;
             }
-
-            if (precomputedCountsInlined.containsKey(this.locationDescriptor)) {
-                this.aotInlineCallCount = precomputedCountsInlined.get(locationDescriptor);
-            } else {
+            if (INLINE){
+                if (precomputedCountsInlined.containsKey(this.locationDescriptor)) {
+                    this.aotInlineCallCount = precomputedCountsInlined.get(locationDescriptor);
+                } else {
+                    this.aotInlineCallCount = Integer.MAX_VALUE;
+                }
+            }
+            else{
                 this.aotInlineCallCount = Integer.MAX_VALUE;
             }
         }
         else{
             this.sourceSection = rootNode.getSourceSection();
-            this.locationDescriptor = "empty";
+            boolean hasSource = sourceSection != null;
+            if (hasSource) {
+                String name = sourceSection.getSource().getName();
+                int startLine = sourceSection.getStartLine();
+                int endLine = sourceSection.getEndLine();
+                int startColumn = sourceSection.getStartColumn();
+                int endColumn = sourceSection.getEndColumn();
+                String position = startLine + "-" + endLine + ":" + startColumn + "-" + endColumn;
+                this.locationDescriptor = name + "~" + position + rootNode;
+            } else {
+                this.locationDescriptor = "empty";
+            }
+            if (INLINE){
+                if (precomputedCountsInlined.containsKey(this.locationDescriptor)) {
+                    this.aotInlineCallCount = precomputedCountsInlined.get(locationDescriptor);
+                } else {
+                    this.aotInlineCallCount = Integer.MAX_VALUE;
+                }
+            }
+            else{
+                this.aotInlineCallCount = Integer.MAX_VALUE;
+            }
             this.aotCompilationCallCount = Integer.MAX_VALUE;
-            this.aotInlineCallCount = Integer.MAX_VALUE;
 
             assert sourceCallTarget == null || sourceCallTarget.sourceCallTarget == null : "Cannot create a clone of a cloned CallTarget";
             this.sourceCallTarget = sourceCallTarget;
@@ -439,6 +463,7 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
             this.uninitializedNodeCount = isOSR() ? -1 : GraalRuntimeAccessor.NODES.adoptChildrenAndCount(rootNode);
             id = idCounter.getAndIncrement();
         }
+
     }
 
     private static final Map<String, Integer> precomputedCounts = new HashMap<>();
@@ -456,21 +481,19 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
                 }
             } catch (IOException e) {
                 e.printStackTrace();
-            }
-            if(INLINE) {
-                try {
-                    List<String> lines = Files.readAllLines(Paths.get(INPUT_FILE_INLINE));
-                    for (String s : lines) {
-                        String[] split = s.split("@@");
-                        String key = split[1];
-                        Integer value = Integer.parseInt(split[0]);
-                        precomputedCountsInlined.put(key, value);
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
+            }}
+        if(INLINE) {
+            try {
+                List<String> lines = Files.readAllLines(Paths.get(INPUT_FILE_INLINE));
+                for (String s : lines) {
+                    String[] split = s.split("@@");
+                    String key = split[1];
+                    Integer value = Integer.parseInt(split[0]);
+                    precomputedCountsInlined.put(key, value);
                 }
-            }
-        }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }}
     }
 
 
@@ -721,23 +744,23 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
     }
 
     private boolean shouldCompileImpl(int intCallCount, int intLoopCallCount) {
-        if(USE_GRAPH) {
-            if (INLINE) {
-                if (intCallCount >= this.aotInlineCallCount) {
-                    OptimizedDirectCallNode callNode = getSingleCallNode();
-                    if (callNode != null && callNode.isInlinable() && !callNode.isInliningForced()) {
-                        callNode.forceInlining();
-                        if(FORCE_INLINE) {
-                            return !compilationFailed //
-                                    && !isSubmittedForCompilation() //
-                                    /*
-                                     * Compilation of OSR loop nodes is managed separately.
-                                     */
-                                    && !isOSR(); //true;
-                        }
+        if (INLINE) {
+            if (intCallCount >= this.aotInlineCallCount) {
+                OptimizedDirectCallNode callNode = getSingleCallNode();
+                if (callNode != null && callNode.isInlinable() && !callNode.isInliningForced()) {
+                    callNode.forceInlining();
+                    if(FORCE_INLINE) {
+                        return !compilationFailed //
+                                && !isSubmittedForCompilation() //
+                                /*
+                                 * Compilation of OSR loop nodes is managed separately.
+                                 */
+                                && !isOSR(); //true;
                     }
                 }
             }
+        }
+        if(USE_GRAPH) {
             if (this.aotCompilationCallCount == 0) {
                 return !compilationFailed //
                         && !isSubmittedForCompilation() //
