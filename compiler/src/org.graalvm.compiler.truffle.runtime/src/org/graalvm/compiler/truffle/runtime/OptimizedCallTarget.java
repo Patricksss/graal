@@ -381,9 +381,9 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
     volatile List<OptimizedCallTarget> blockCompilations;
     public final int id;
     private static final AtomicInteger idCounter = new AtomicInteger(0);
-    
+
     protected OptimizedCallTarget(OptimizedCallTarget sourceCallTarget, RootNode rootNode) {
-        if (USE_GRAPH) {
+        if (USE_GRAPH || INLINE) {
             assert sourceCallTarget == null || sourceCallTarget.sourceCallTarget == null : "Cannot create a clone of a cloned CallTarget";
             this.sourceCallTarget = sourceCallTarget;
             this.speculationLog = sourceCallTarget != null ? sourceCallTarget.getSpeculationLog() : null;
@@ -415,42 +415,18 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
             } else {
                 this.aotCompilationCallCount = Integer.MAX_VALUE;
             }
-            if (INLINE){
-                if (precomputedCountsInlined.containsKey(this.locationDescriptor)) {
-                    this.aotInlineCallCount = precomputedCountsInlined.get(locationDescriptor);
-                } else {
-                    this.aotInlineCallCount = Integer.MAX_VALUE;
-                }
-            }
-            else{
+            if (precomputedCountsInlined.containsKey(this.locationDescriptor)) {
+                this.aotInlineCallCount = precomputedCountsInlined.get(locationDescriptor);
+            } else {
                 this.aotInlineCallCount = Integer.MAX_VALUE;
             }
         }
         else{
+            this.locationDescriptor = "empty";
+            this.aotCompilationCallCount = Integer.MAX_VALUE;
+            this.aotInlineCallCount = Integer.MAX_VALUE;
             this.sourceSection = rootNode.getSourceSection();
             boolean hasSource = sourceSection != null;
-            if (hasSource) {
-                String name = sourceSection.getSource().getName();
-                int startLine = sourceSection.getStartLine();
-                int endLine = sourceSection.getEndLine();
-                int startColumn = sourceSection.getStartColumn();
-                int endColumn = sourceSection.getEndColumn();
-                String position = startLine + "-" + endLine + ":" + startColumn + "-" + endColumn;
-                this.locationDescriptor = name + "~" + position + rootNode;
-            } else {
-                this.locationDescriptor = "empty";
-            }
-            if (INLINE){
-                if (precomputedCountsInlined.containsKey(this.locationDescriptor)) {
-                    this.aotInlineCallCount = precomputedCountsInlined.get(locationDescriptor);
-                } else {
-                    this.aotInlineCallCount = Integer.MAX_VALUE;
-                }
-            }
-            else{
-                this.aotInlineCallCount = Integer.MAX_VALUE;
-            }
-            this.aotCompilationCallCount = Integer.MAX_VALUE;
 
             assert sourceCallTarget == null || sourceCallTarget.sourceCallTarget == null : "Cannot create a clone of a cloned CallTarget";
             this.sourceCallTarget = sourceCallTarget;
@@ -463,7 +439,6 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
             this.uninitializedNodeCount = isOSR() ? -1 : GraalRuntimeAccessor.NODES.adoptChildrenAndCount(rootNode);
             id = idCounter.getAndIncrement();
         }
-
     }
 
     private static final Map<String, Integer> precomputedCounts = new HashMap<>();
@@ -761,24 +736,13 @@ public abstract class OptimizedCallTarget implements CompilableTruffleAST, RootC
             }
         }
         if(USE_GRAPH) {
-            if (this.aotCompilationCallCount == 0) {
-                return !compilationFailed //
-                        && !isSubmittedForCompilation() //
-                        /*
-                         * Compilation of OSR loop nodes is managed separately.
-                         */
-                        && !isOSR() //
-                        && intCallCount >= engine.callThresholdInInterpreter //
-                        && intLoopCallCount >= scaledThreshold(engine.callAndLoopThresholdInInterpreter); //
-            } else {
-                return !compilationFailed //
-                        && !isSubmittedForCompilation() //
-                        /*
-                         * Compilation of OSR loop nodes is managed separately.
-                         */
-                        && !isOSR() //
-                        && intCallCount >= this.aotCompilationCallCount; //
-            }
+            return !compilationFailed //
+                    && !isSubmittedForCompilation() //
+                    /*
+                     * Compilation of OSR loop nodes is managed separately.
+                     */
+                    && !isOSR() //
+                    && intCallCount >= this.aotCompilationCallCount; //
         }
         else{
             return !compilationFailed //
