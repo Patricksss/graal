@@ -1,5 +1,5 @@
 # callTracer-graalVM
-Instrument to create a call graph for projects run on graalvm and use these call graphs to optimise compiler.
+Instrument to create a call graph for projects run on GraalVM and use these call graphs to optimise GraalVM.
 
 Graaljs commit version (Apr 14): c6fc92e7367004b1b952ce21da7c8a13f3f436a1
 
@@ -28,7 +28,7 @@ Run the following command to get call graph of TypeScript compiler in csv format
 
 ```mx --dy /tools js --vm.Xms4g --calltracer --calltracer.Output=CSV --calltracer.OutputFile=output.csv typescript.js```
 
-Other options such as arguments and object instances can be enabled by adding options: `--calltracer.TraceArguments`
+Additional information such as arguments and object instances can be enabled by adding options: `--calltracer.TraceArguments`
 
 All options can be found by `mx --dy /tools --help:tools`.
 
