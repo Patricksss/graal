@@ -814,8 +814,8 @@ public abstract class GraalTruffleRuntime implements TruffleRuntime, TruffleComp
     @SuppressWarnings("try")
     public CompilationTask submitForCompilation(OptimizedCallTarget optimizedCallTarget, boolean lastTierCompilation) {
         Priority priority = new Priority(optimizedCallTarget.getCallAndLoopCount(), lastTierCompilation ? Priority.Tier.LAST : Priority.Tier.FIRST);
+        //Priority priority = new Priority(0,lastTierCompilation ? Priority.Tier.LAST : Priority.Tier.FIRST);
         return getCompileQueue().submitCompilation(priority, optimizedCallTarget);
-
     }
 
     @SuppressWarnings("all")

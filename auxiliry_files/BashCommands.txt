@@ -1,0 +1,24 @@
+#Bash command to build Graal,MX, and Graaljs.
+cd Graalvm &&
+export PATH=$PWD/mx:$PATH &&
+cd graaljs/graal-js && 
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk &&
+mx --dy /tools /compiler build
+
+#Bash command to build tool and perform unit tests.
+cd graalvm/graal/tools &&
+mx --dy /graal-js build &&
+mx --dy /graal-js unittest --suite tools --verbose
+
+#Bash command to build call graphs.
+mx --dy /tools js --vm.Xms4g --experimental-options --calltracer --calltracer.TraceSpecifiedSource --calltracer.TraceInternal=true --calltracer.Output=CSV 
+--calltracer.OutputFile=output.csv benchmark.js
+
+#Bash command to start Neo4j
+cd /neo4j-community-4.3.7/bin && export JAVA_HOME=/usr/lib/jvm/java-11-openjdk && export PATH=$JAVA_HOME/bin:$PATH && ./neo4j start
+
+#Bash command to perform default benchmarks
+su -c "cset shield -e mx -- --dy /compiler js --vm.DcallTarget.useGraph=false --vm.DcallTarget.forceCompileInline=false --vm.DcallTarget.inputCompile=some_compile.csv --vm.DcallTarget.inline=false --engine.PriorityQueue=true --vm.DcallTarget.inputInline=some_inline.csv --experimental-options --engine.TraversingCompilationQueue=true --engine.CompilerThreads=1 --engine.Inlining=true --engine.TraceInlining --engine.TraceCompilationDetails --engine.CompilationStatistics --log.file=log.txt BenchName.js"
+
+#Bash command to perform non-default benchmarks
+su -c "cset shield -e mx -- --dy /compiler js --vm.DcallTarget.useGraph=true --vm.DcallTarget.forceCompileInline=true --vm.DcallTarget.inputCompile=some_compile.csv --vm.DcallTarget.inline=true --engine.PriorityQueue=false --vm.DcallTarget.inputInline=some_inline.csv --experimental-options --engine.TraversingCompilationQueue=false --engine.CompilerThreads=1 --engine.Inlining=true --engine.TraceInlining --engine.TraceCompilationDetails --engine.CompilationStatistics --log.file=log.txt BenchName.js"

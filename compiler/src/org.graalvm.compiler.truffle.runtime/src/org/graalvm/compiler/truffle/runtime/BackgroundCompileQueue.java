@@ -257,7 +257,10 @@ public class BackgroundCompileQueue {
             this.value = value;
             this.tier = tier;
         }
-
+//        Priority(int value, Tier tier) {
+//            this.value = value;
+//            this.tier = tier;
+//        }
         public enum Tier {
             INITIALIZATION,
             FIRST,
