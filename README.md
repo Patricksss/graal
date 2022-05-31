@@ -9,24 +9,24 @@ Install GraalJS and build: https://github.com/oracle/graaljs/blob/master/docs/Bu
 
 Install Graal tools: https://github.com/oracle/graal/tree/master/tools
 
-## Use query results to optimise compiler
+All changes to the main repo can be found in https://github.com/Patricksss/graal/tree/master/auxiliry_files
 
-taking as example the benchmark `typescript.js`.
+## Use query results to improve GraalVM performance
 
-Benchmark can be found under: `/graaljs/graal-js/benchmarks`.
+Taking as example the TypeScript benchmark.
 
-Example input files under: `/graaljs/graal-js/typescript_inputs`.
+Benchmark can be found under: `https://github.com/Patricksss/graal/tree/master/auxiliry_files/benchmarks`.
+
+Example input files under: `https://github.com/Patricksss/graal/tree/master/auxiliry_files/InputLists/typescript_inputs`.
 
 Now we can run the benchmark with an improved compiler strategy with:
 
-`mx --dy /compiler js --experimental-options --vm.DcallTarget.useGraph=true --vm.DcallTarget.inputCompile="typescript_inputs/50_sqrt_example.csv" --engine.TraversingCompilationQueue=false --engine.CompilerThreads=1 --engine.Inlining=true benchmarks/typescript.js`.
+`mx --dy /compiler js --experimental-options --vm.DcallTarget.useGraph=true --vm.DcallTarget.inputCompile="input.csv" --engine.TraversingCompilationQueue=false engine.PriorityQueue=false --engine.CompilerThreads=1 --engine.Inlining=true typescript.js`.
 
-Note that it is nescesarry to disable the `TraversingCompilationQueue` as that is the queue that we are trying to improve upon.
+## Use calltracer tool to create call graph of JavaScript program.
+Run the following command to get call graph of TypeScript compiler in csv format.
 
-## Use calltracer tool to create call graph of javascript program.
-Run the following command to get call graph of Typescript compiler in csv format.
-
-'mx --dy /tools js --vm.Xms4g --calltracer --calltracer.Output=CSV --calltracer.OutputFile=output.csv typescript.js'
+```mx --dy /tools js --vm.Xms4g --calltracer --calltracer.Output=CSV --calltracer.OutputFile=output.csv typescript.js```
 
 Other options such as arguments and object instances can be enabled by adding options: `--calltracer.TraceArguments`
 
@@ -46,20 +46,7 @@ export PATH=$JAVA_HOME/bin:$PATH
 ./neo4j start
 ./cypher-shell
 ```
-
-Now we can run Cypher queries. Cypher queries are included in: https://github.com/Patricksss/callTracer-graalVM/blob/main/Queries.cypher
-
-### Optional settings required for some options/queries
-
-From `neo4j-community-4.3.7/labs` directory move `apoc-4.3.0.3-core.jar` to `neo4j-community-4.3.7/plugins` directory.
-
-Enter `neo4j-community-4.3.7/conf` directory and edit `neo4j.conf`:
-
-Add to file: `dbms.import.csv.buffer_size=33554432`
-
-Add to file: `apoc.export.file.enabled=true`
-
-change `dbms.jvm.additional=-Djdk.nio.maxCachedBufferSize=` to: `dbms.jvm.additional=-Djdk.nio.maxCachedBufferSize=2097152`
+Example Cypher queries are in: `https://github.com/Patricksss/graal/blob/master/auxiliry_files/Queries.cypher`
 
 
 [![GraalVM](.github/assets/logo_320x64.svg)][website]
